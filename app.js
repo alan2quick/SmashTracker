@@ -365,6 +365,22 @@ $("unplayed-only").addEventListener("change", (e) => {
 
 /* ================= Matchup modal ================= */
 
+// A player's overall record with one character: for P1 that character's
+// row (results where P1 played it), for P2 its column.
+function charRecord(side, i) {
+  const res = currentBoard.results;
+  let w = 0, l = 0;
+  for (let j = 0; j < N; j++) {
+    const v = side === "p1" ? res[muKey(i, j)] : res[muKey(j, i)];
+    if (!v) continue;
+    const won = side === "p1" ? v === 1 : v === 2;
+    if (won) w++; else l++;
+  }
+  return { w, l };
+}
+
+const fmtRecord = ({ w, l }) => `${w}W – ${l}L`;
+
 const modal = $("matchup-modal");
 let currentMU = null; // { r, c, fromRandom }
 let highlighted = null;
@@ -390,6 +406,8 @@ function openMatchup(r, c, fromRandom) {
   $("mu-p2-player").textContent = b.p2.name;
   $("mu-win-p1").textContent = `${b.p1.name} won`;
   $("mu-win-p2").textContent = `${b.p2.name} won`;
+  $("mu-p1-record").textContent = fmtRecord(charRecord("p1", r));
+  $("mu-p2-record").textContent = fmtRecord(charRecord("p2", c));
   $("mu-reroll").hidden = !fromRandom;
 
   const w = b.results[muKey(r, c)];
@@ -446,7 +464,13 @@ function buildPickerList() {
     img.alt = "";
     img.loading = "lazy";
     btn.appendChild(img);
-    btn.appendChild(document.createTextNode(ch.name));
+    const name = document.createElement("span");
+    name.className = "cp-name";
+    name.textContent = ch.name;
+    btn.appendChild(name);
+    const rec = document.createElement("span");
+    rec.className = "cp-rec";
+    btn.appendChild(rec);
     li.appendChild(btn);
     frag.appendChild(li);
   });
@@ -460,7 +484,9 @@ function openPicker(side) {
   cpSearch.value = "";
   filterPicker("");
   cpList.querySelectorAll("button").forEach((b) => {
-    b.classList.toggle("current", +b.dataset.i === currentIdx);
+    const i = +b.dataset.i;
+    b.classList.toggle("current", i === currentIdx);
+    b.querySelector(".cp-rec").textContent = fmtRecord(charRecord(side, i));
   });
   picker.showModal();
   const cur = cpList.querySelector("button.current");
