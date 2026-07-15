@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#14161c">
+  <title>Smash Matchup Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ HOME: board list ============ -->
+  <main id="home-view" class="view">
+    <header class="home-header">
+      <h1>Smash Matchup Tracker</h1>
+      <p class="subtitle">76 fighters &middot; 5,776 matchups per board</p>
+    </header>
+    <ul id="board-list" class="board-list"></ul>
+    <div class="home-actions">
+      <button id="new-board-btn" class="btn btn-primary">+ New board</button>
+      <button id="export-btn" class="btn btn-ghost">Export</button>
+      <button id="import-btn" class="btn btn-ghost">Import</button>
+      <input type="file" id="import-file" accept="application/json" hidden>
+    </div>
+  </main>
+
+  <!-- ============ BOARD ============ -->
+  <main id="board-view" class="view" hidden>
+    <header class="board-header">
+      <button id="back-btn" class="icon-btn" aria-label="Back">&#8592;</button>
+      <div class="board-title">
+        <span id="board-name"></span>
+        <span id="board-progress" class="progress-text"></span>
+      </div>
+      <div id="score-display" class="score-display">
+        <span class="score p1"><b id="score-p1-name"></b> <span id="score-p1"></span></span>
+        <span class="score-sep">&ndash;</span>
+        <span class="score p2"><span id="score-p2"></span> <b id="score-p2-name"></b></span>
+      </div>
+    </header>
+
+    <div id="grid-viewport" class="grid-viewport">
+      <div id="grid-canvas" class="grid-canvas"></div>
+    </div>
+
+    <footer class="board-footer">
+      <button id="zoom-out-btn" class="icon-btn" aria-label="Zoom out">&minus;</button>
+      <button id="fit-btn" class="icon-btn" aria-label="Fit board">&#8690;</button>
+      <button id="zoom-in-btn" class="icon-btn" aria-label="Zoom in">+</button>
+      <button id="randomize-btn" class="btn btn-primary">&#127922; Next matchup</button>
+      <label class="toggle">
+        <input type="checkbox" id="unplayed-only">
+        <span>Unplayed only</span>
+      </label>
+    </footer>
+  </main>
+
+  <!-- ============ Matchup modal ============ -->
+  <dialog id="matchup-modal" class="modal">
+    <div class="matchup-display">
+      <div class="fighter p1">
+        <img id="mu-p1-img" alt="">
+        <span id="mu-p1-char" class="char-name"></span>
+        <span id="mu-p1-player" class="player-name"></span>
+      </div>
+      <span class="vs">VS</span>
+      <div class="fighter p2">
+        <img id="mu-p2-img" alt="">
+        <span id="mu-p2-char" class="char-name"></span>
+        <span id="mu-p2-player" class="player-name"></span>
+      </div>
+    </div>
+    <p id="mu-status" class="mu-status"></p>
+    <div class="modal-actions">
+      <button id="mu-win-p1" class="btn win-btn p1"></button>
+      <button id="mu-win-p2" class="btn win-btn p2"></button>
+    </div>
+    <div class="modal-actions secondary">
+      <button id="mu-reroll" class="btn btn-ghost">&#127922; Reroll</button>
+      <button id="mu-clear" class="btn btn-ghost danger">Clear result</button>
+      <button id="mu-close" class="btn btn-ghost">Close</button>
+    </div>
+  </dialog>
+
+  <!-- ============ Board create/edit modal ============ -->
+  <dialog id="board-modal" class="modal">
+    <h2 id="board-modal-title">New board</h2>
+    <form id="board-form" method="dialog">
+      <label class="field">Board name
+        <input type="text" id="bf-name" required maxlength="40" placeholder="e.g. Basement board">
+      </label>
+      <div class="player-fields">
+        <label class="field">Player 1 (rows)
+          <input type="text" id="bf-p1-name" required maxlength="20" placeholder="Aaron">
+        </label>
+        <input type="color" id="bf-p1-color" value="#3b82f6" aria-label="Player 1 color">
+      </div>
+      <div class="player-fields">
+        <label class="field">Player 2 (columns)
+          <input type="text" id="bf-p2-name" required maxlength="20" placeholder="Greg">
+        </label>
+        <input type="color" id="bf-p2-color" value="#ef4444" aria-label="Player 2 color">
+      </div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary" id="bf-save">Create</button>
+        <button type="button" class="btn btn-ghost" id="bf-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="characters.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
