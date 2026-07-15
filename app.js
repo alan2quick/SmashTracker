@@ -424,6 +424,80 @@ $("mu-clear").addEventListener("click", () => setResult(0));
 $("mu-close").addEventListener("click", () => modal.close());
 modal.addEventListener("close", clearHighlight);
 
+/* ================= Character picker ================= */
+
+const picker = $("char-picker");
+const cpSearch = $("cp-search");
+const cpList = $("cp-list");
+let pickerSide = null; // "p1" | "p2"
+
+const normalize = (s) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+function buildPickerList() {
+  const frag = document.createDocumentFragment();
+  CHARACTERS.forEach((ch, i) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.i = i;
+    const img = document.createElement("img");
+    img.src = `icons/${ch.slug}.png`;
+    img.alt = "";
+    img.loading = "lazy";
+    btn.appendChild(img);
+    btn.appendChild(document.createTextNode(ch.name));
+    li.appendChild(btn);
+    frag.appendChild(li);
+  });
+  cpList.appendChild(frag);
+}
+buildPickerList();
+
+function openPicker(side) {
+  pickerSide = side;
+  const currentIdx = side === "p1" ? currentMU.r : currentMU.c;
+  cpSearch.value = "";
+  filterPicker("");
+  cpList.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("current", +b.dataset.i === currentIdx);
+  });
+  picker.showModal();
+  const cur = cpList.querySelector("button.current");
+  if (cur) cur.scrollIntoView({ block: "center" });
+  cpSearch.focus();
+}
+
+function filterPicker(query) {
+  const q = normalize(query.trim());
+  cpList.querySelectorAll("button").forEach((b) => {
+    const ch = CHARACTERS[+b.dataset.i];
+    b.parentElement.hidden = q !== "" && !normalize(ch.name).includes(q);
+  });
+}
+
+function pickCharacter(i) {
+  picker.close();
+  const { r, c, fromRandom } = currentMU;
+  if (pickerSide === "p1") openMatchup(i, c, fromRandom);
+  else openMatchup(r, i, fromRandom);
+}
+
+$("mu-p1-pick").addEventListener("click", () => openPicker("p1"));
+$("mu-p2-pick").addEventListener("click", () => openPicker("p2"));
+cpSearch.addEventListener("input", () => filterPicker(cpSearch.value));
+cpSearch.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const first = cpList.querySelector("li:not([hidden]) button");
+    if (first) pickCharacter(+first.dataset.i);
+  }
+});
+cpList.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-i]");
+  if (btn) pickCharacter(+btn.dataset.i);
+});
+
 /* ================= Randomizer ================= */
 
 $("randomize-btn").addEventListener("click", rollMatchup);

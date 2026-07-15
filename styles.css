@@ -207,6 +207,26 @@ button { font: inherit; cursor: pointer; }
   border-radius: 12px;
   background: #fff;
   border: 3px solid transparent;
+  display: block;
+}
+.icon-pick {
+  position: relative;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.pick-hint {
+  position: absolute;
+  right: -5px; bottom: -5px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
 }
 .fighter.p1 img { border-color: var(--p1-color); }
 .fighter.p2 img { border-color: var(--p2-color); }
@@ -226,6 +246,54 @@ button { font: inherit; cursor: pointer; }
 .win-btn.p1 { background: var(--p1-color); border-color: var(--p1-color); color: #fff; }
 .win-btn.p2 { background: var(--p2-color); border-color: var(--p2-color); color: #fff; }
 .win-btn.held { outline: 3px solid #fff3; }
+
+/* Character picker */
+.picker {
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(560px, 80dvh);
+}
+.picker[open] { display: flex; }
+#cp-search {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 15px;
+  flex: none;
+}
+.cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cp-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 15px;
+  text-align: left;
+}
+.cp-list button:hover, .cp-list button:focus-visible { background: var(--surface-2); }
+.cp-list button.current { outline: 2px solid var(--accent); }
+.cp-list img {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  background: #fff;
+  flex: none;
+}
 
 /* Board form */
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-dim); flex: 1; }

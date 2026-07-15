@@ -64,13 +64,19 @@
   <dialog id="matchup-modal" class="modal">
     <div class="matchup-display">
       <div class="fighter p1">
-        <img id="mu-p1-img" alt="">
+        <button class="icon-pick" id="mu-p1-pick" title="Change character">
+          <img id="mu-p1-img" alt="">
+          <span class="pick-hint">&#9662;</span>
+        </button>
         <span id="mu-p1-char" class="char-name"></span>
         <span id="mu-p1-player" class="player-name"></span>
       </div>
       <span class="vs">VS</span>
       <div class="fighter p2">
-        <img id="mu-p2-img" alt="">
+        <button class="icon-pick" id="mu-p2-pick" title="Change character">
+          <img id="mu-p2-img" alt="">
+          <span class="pick-hint">&#9662;</span>
+        </button>
         <span id="mu-p2-char" class="char-name"></span>
         <span id="mu-p2-player" class="player-name"></span>
       </div>
@@ -85,6 +91,12 @@
       <button id="mu-clear" class="btn btn-ghost danger">Clear result</button>
       <button id="mu-close" class="btn btn-ghost">Close</button>
     </div>
+  </dialog>
+
+  <!-- ============ Character picker ============ -->
+  <dialog id="char-picker" class="modal picker">
+    <input type="search" id="cp-search" placeholder="Search fighters&hellip;" autocomplete="off" spellcheck="false">
+    <ul id="cp-list" class="cp-list"></ul>
   </dialog>
 
   <!-- ============ Board create/edit modal ============ -->
