@@ -541,7 +541,7 @@ function charRecord(side, i) {
   return { w, l };
 }
 
-const fmtRecord = ({ w, l }) => `${w}W – ${l}L`;
+const fmtRecord = ({ w, l }) => `${w} – ${l}`;
 
 const modal = $("matchup-modal");
 let currentMU = null; // { r, c, fromRandom }
