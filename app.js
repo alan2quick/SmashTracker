@@ -5,11 +5,29 @@
 const STORE_KEY = "smashtracker.v1";
 
 function loadDB() {
+  let data = { boards: [] };
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) data = JSON.parse(raw);
   } catch (e) { /* corrupted -> start fresh */ }
-  return { boards: [] };
+  data.boards.forEach(migrateBoard);
+  return data;
+}
+
+// Boards created before roster options existed store combined-echo results
+// under the base slug ("marth|fox"); move them to the combined namespace
+// ("marth+lucina|fox") and attach the default roster config.
+function migrateBoard(board) {
+  if (board.roster) return;
+  board.roster = { separated: [], miis: false };
+  const map = {};
+  for (const ch of ECHO_PAIRS) map[ch.slug] = combinedSlug(ch);
+  const migrated = {};
+  for (const k in board.results) {
+    const [r, c] = k.split("|");
+    migrated[(map[r] || r) + "|" + (map[c] || c)] = board.results[k];
+  }
+  board.results = migrated;
 }
 
 function saveDB() {
@@ -20,17 +38,37 @@ let db = loadDB();
 let currentBoard = null;
 
 const $ = (id) => document.getElementById(id);
-const muKey = (r, c) => CHARACTERS[r].slug + "|" + CHARACTERS[c].slug;
+
+/* ================= Active roster ================= */
+
+// Roster of the currently open board. Results are keyed by roster slugs, so
+// only cells of the active roster count anywhere; results for hidden
+// fighters (combined pairs, separated echoes, disabled Miis) stay saved.
+let ROSTER = [];
+let N = 0;
+let TOTAL = 0;
+
+function setActiveRoster(board) {
+  ROSTER = buildRoster(board.roster);
+  N = ROSTER.length;
+  TOTAL = N * N;
+}
+
+const muKey = (r, c) => ROSTER[r].slug + "|" + ROSTER[c].slug;
 
 /* ================= Home view ================= */
 
 function boardStats(board) {
+  const roster = buildRoster(board.roster);
   let p1 = 0, p2 = 0;
-  for (const k in board.results) {
-    if (board.results[k] === 1) p1++;
-    else if (board.results[k] === 2) p2++;
+  for (const a of roster) {
+    for (const b of roster) {
+      const v = board.results[a.slug + "|" + b.slug];
+      if (v === 1) p1++;
+      else if (v === 2) p2++;
+    }
   }
-  return { p1, p2, played: p1 + p2 };
+  return { p1, p2, played: p1 + p2, total: roster.length * roster.length };
 }
 
 function renderHome() {
@@ -46,14 +84,14 @@ function renderHome() {
     li.className = "board-card";
     li.style.setProperty("--bc-p1", board.p1.color);
     li.style.setProperty("--bc-p2", board.p2.color);
-    const pct1 = (s.p1 / TOTAL_MATCHUPS) * 100;
-    const pct2 = (s.p2 / TOTAL_MATCHUPS) * 100;
+    const pct1 = (s.p1 / s.total) * 100;
+    const pct2 = (s.p2 / s.total) * 100;
     li.innerHTML = `
       <div class="board-card-main">
         <div class="board-card-name"></div>
         <div class="board-card-score">
           <b class="p1"></b> ${s.p1} &ndash; ${s.p2} <b class="p2"></b>
-          &middot; ${s.played.toLocaleString()}/${TOTAL_MATCHUPS.toLocaleString()}
+          &middot; ${s.played.toLocaleString()}/${s.total.toLocaleString()}
         </div>
         <div class="board-card-bar">
           <div class="fill-p1" style="width:${pct1}%"></div>
@@ -87,6 +125,21 @@ function renderHome() {
 
 let editingBoard = null;
 
+// Build the per-pair "separate echoes" checkboxes once.
+(function buildPairToggles() {
+  const wrap = $("bf-pairs");
+  for (const ch of ECHO_PAIRS) {
+    const label = document.createElement("label");
+    label.className = "adv-toggle";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.pair = ch.slug;
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(` Separate ${ch.name} & ${ch.echo.name}`));
+    wrap.appendChild(label);
+  }
+})();
+
 function openBoardForm(board) {
   editingBoard = board || null;
   $("board-modal-title").textContent = board ? "Edit board" : "New board";
@@ -96,28 +149,128 @@ function openBoardForm(board) {
   $("bf-p2-name").value = board ? board.p2.name : "";
   $("bf-p1-color").value = board ? board.p1.color : "#3b82f6";
   $("bf-p2-color").value = board ? board.p2.color : "#ef4444";
+  const cfg = board ? board.roster : { separated: [], miis: false };
+  $("bf-miis").checked = !!cfg.miis;
+  const sep = new Set(cfg.separated || []);
+  $("bf-pairs").querySelectorAll("input").forEach((i) => {
+    i.checked = sep.has(i.dataset.pair);
+  });
+  $("bf-advanced").open = false;
   $("board-modal").showModal();
 }
 
-$("board-form").addEventListener("submit", () => {
-  const data = {
-    name: $("bf-name").value.trim(),
-    p1: { name: $("bf-p1-name").value.trim(), color: $("bf-p1-color").value },
-    p2: { name: $("bf-p2-name").value.trim(), color: $("bf-p2-color").value },
+function formRosterConfig() {
+  const separated = [...$("bf-pairs").querySelectorAll("input:checked")]
+    .map((i) => i.dataset.pair);
+  return { separated, miis: $("bf-miis").checked };
+}
+
+// Does this board have any individually-played echo results for the pair?
+function hasSeparateResults(board, ch) {
+  const slugs = new Set([ch.slug, ch.echo.slug]);
+  for (const k in board.results) {
+    const [r, c] = k.split("|");
+    if (slugs.has(r) || slugs.has(c)) return true;
+  }
+  return false;
+}
+
+// Fill combined-namespace cells from individual echo results. Saved combined
+// results always win; otherwise a winner is assigned only when every played
+// constituent game (1-0, 2-0, ...) went to the same player.
+function mergeEchoResults(board, pairs, newConfig) {
+  const roster = buildRoster(newConfig);
+  const res = board.results;
+  const reps = (slug) => {
+    const i = slug.indexOf("+");
+    return i < 0 ? [slug] : [slug, slug.slice(0, i), slug.slice(i + 1)];
   };
+  for (const ch of pairs) {
+    const combined = combinedSlug(ch);
+    for (const opp of roster) {
+      for (const [A, B] of [[combined, opp.slug], [opp.slug, combined]]) {
+        const target = A + "|" + B;
+        if (res[target]) continue;
+        let w1 = 0, w2 = 0;
+        for (const a of reps(A)) {
+          for (const b of reps(B)) {
+            const k = a + "|" + b;
+            if (k === target) continue;
+            const v = res[k];
+            if (v === 1) w1++;
+            else if (v === 2) w2++;
+          }
+        }
+        if (w1 > 0 && w2 === 0) res[target] = 1;
+        else if (w2 > 0 && w1 === 0) res[target] = 2;
+      }
+    }
+  }
+}
+
+let pendingSave = null; // { data, newConfig, affected }
+
+function applyBoardSave(data, newConfig) {
   if (editingBoard) {
     Object.assign(editingBoard, data);
+    editingBoard.roster = newConfig;
   } else {
     db.boards.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       created: new Date().toISOString(),
       results: {},
       unplayedOnly: true,
+      roster: newConfig,
       ...data,
     });
   }
   saveDB();
   renderHome();
+  $("board-modal").close();
+}
+
+$("board-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const data = {
+    name: $("bf-name").value.trim(),
+    p1: { name: $("bf-p1-name").value.trim(), color: $("bf-p1-color").value },
+    p2: { name: $("bf-p2-name").value.trim(), color: $("bf-p2-color").value },
+  };
+  const newConfig = formRosterConfig();
+  if (editingBoard) {
+    const oldSep = new Set(editingBoard.roster.separated || []);
+    const newSep = new Set(newConfig.separated);
+    const affected = ECHO_PAIRS.filter(
+      (ch) => oldSep.has(ch.slug) && !newSep.has(ch.slug) && hasSeparateResults(editingBoard, ch)
+    );
+    if (affected.length) {
+      pendingSave = { data, newConfig, affected };
+      $("ew-pairs").textContent = affected
+        .map((ch) => `${ch.name} & ${ch.echo.name}`)
+        .join(", ");
+      $("echo-warning").showModal();
+      return;
+    }
+  }
+  applyBoardSave(data, newConfig);
+});
+
+$("ew-cancel").addEventListener("click", () => {
+  pendingSave = null;
+  $("echo-warning").close();
+});
+$("ew-blank").addEventListener("click", () => {
+  const { data, newConfig } = pendingSave;
+  pendingSave = null;
+  $("echo-warning").close();
+  applyBoardSave(data, newConfig);
+});
+$("ew-merge").addEventListener("click", () => {
+  const { data, newConfig, affected } = pendingSave;
+  pendingSave = null;
+  $("echo-warning").close();
+  mergeEchoResults(editingBoard, affected, newConfig);
+  applyBoardSave(data, newConfig);
 });
 
 $("bf-cancel").addEventListener("click", () => $("board-modal").close());
@@ -144,6 +297,7 @@ $("import-file").addEventListener("change", async (e) => {
     if (!confirm(`Import ${data.boards.length} board(s)? They will be added alongside existing boards.`)) return;
     for (const b of data.boards) {
       if (db.boards.some((x) => x.id === b.id)) b.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      migrateBoard(b);
       db.boards.push(b);
     }
     saveDB();
@@ -161,9 +315,11 @@ const canvas = $("grid-canvas");
 let cellEls = null; // 2D lookup: cellEls[r][c]
 let view = { scale: 1, tx: 0, ty: 0, minScale: 0.1, maxScale: 10 };
 const CELL = 14; // cell pitch: 13px track + 1px gap (see --cell in CSS)
-const GRID_PX = (N + 1) * CELL + 3; // padding minus trailing gap
+let gridPx = 0; // board size in px; depends on roster size
+let gridSig = ""; // roster signature the current grid was built for
 
 function buildGrid() {
+  gridPx = (N + 1) * CELL + 3; // padding minus trailing gap
   canvas.style.gridTemplateColumns = `repeat(${N + 1}, ${CELL - 1}px)`;
   canvas.innerHTML = "";
   const frag = document.createDocumentFragment();
@@ -193,9 +349,9 @@ function headerIcon(i) {
   const d = document.createElement("div");
   d.className = "gh";
   const img = document.createElement("img");
-  img.src = `icons/${CHARACTERS[i].slug}.png`;
-  img.alt = CHARACTERS[i].name;
-  img.title = CHARACTERS[i].name;
+  img.src = `icons/${ROSTER[i].icon}.png`;
+  img.alt = ROSTER[i].name;
+  img.title = ROSTER[i].name;
   img.draggable = false;
   img.loading = "lazy";
   d.appendChild(img);
@@ -222,11 +378,11 @@ function applyView() {
 
 function fitBoard(animate) {
   const vw = viewport.clientWidth, vh = viewport.clientHeight;
-  const scale = Math.min(vw / GRID_PX, vh / GRID_PX) * 0.97;
+  const scale = Math.min(vw / gridPx, vh / gridPx) * 0.97;
   view.scale = scale;
   view.minScale = scale * 0.5;
-  view.tx = (vw - GRID_PX * scale) / 2;
-  view.ty = (vh - GRID_PX * scale) / 2;
+  view.tx = (vw - gridPx * scale) / 2;
+  view.ty = (vh - gridPx * scale) / 2;
   if (animate) animateView();
   else applyView();
 }
@@ -329,13 +485,19 @@ function centerOnCell(r, c) {
 
 function openBoard(board) {
   currentBoard = board;
+  setActiveRoster(board);
   document.documentElement.style.setProperty("--p1-color", board.p1.color);
   document.documentElement.style.setProperty("--p2-color", board.p2.color);
   $("board-name").textContent = board.name;
   $("score-p1-name").textContent = board.p1.name;
   $("score-p2-name").textContent = board.p2.name;
   $("unplayed-only").checked = board.unplayedOnly !== false;
-  if (!cellEls) buildGrid();
+  const sig = ROSTER.map((e) => e.slug).join(",");
+  if (sig !== gridSig) {
+    buildGrid();
+    buildPickerList();
+    gridSig = sig;
+  }
   paintAllCells();
   updateScore();
   $("home-view").hidden = true;
@@ -355,7 +517,7 @@ function updateScore() {
   $("score-p1").textContent = s.p1;
   $("score-p2").textContent = s.p2;
   $("board-progress").textContent =
-    `${s.played.toLocaleString()} / ${TOTAL_MATCHUPS.toLocaleString()} played`;
+    `${s.played.toLocaleString()} / ${TOTAL.toLocaleString()} played`;
 }
 
 $("unplayed-only").addEventListener("change", (e) => {
@@ -398,10 +560,10 @@ function highlightCell(r, c) {
 function openMatchup(r, c, fromRandom) {
   currentMU = { r, c, fromRandom };
   const b = currentBoard;
-  $("mu-p1-img").src = `icons/${CHARACTERS[r].slug}.png`;
-  $("mu-p2-img").src = `icons/${CHARACTERS[c].slug}.png`;
-  $("mu-p1-char").textContent = CHARACTERS[r].name;
-  $("mu-p2-char").textContent = CHARACTERS[c].name;
+  $("mu-p1-img").src = `icons/${ROSTER[r].icon}.png`;
+  $("mu-p2-img").src = `icons/${ROSTER[c].icon}.png`;
+  $("mu-p1-char").textContent = ROSTER[r].name;
+  $("mu-p2-char").textContent = ROSTER[c].name;
   $("mu-p1-player").textContent = b.p1.name;
   $("mu-p2-player").textContent = b.p2.name;
   $("mu-win-p1").textContent = `${b.p1.name} won`;
@@ -453,14 +615,15 @@ const normalize = (s) =>
   s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function buildPickerList() {
+  cpList.innerHTML = "";
   const frag = document.createDocumentFragment();
-  CHARACTERS.forEach((ch, i) => {
+  ROSTER.forEach((ch, i) => {
     const li = document.createElement("li");
     const btn = document.createElement("button");
     btn.type = "button";
     btn.dataset.i = i;
     const img = document.createElement("img");
-    img.src = `icons/${ch.slug}.png`;
+    img.src = `icons/${ch.icon}.png`;
     img.alt = "";
     img.loading = "lazy";
     btn.appendChild(img);
@@ -476,7 +639,6 @@ function buildPickerList() {
   });
   cpList.appendChild(frag);
 }
-buildPickerList();
 
 function openPicker(side) {
   pickerSide = side;
@@ -497,7 +659,7 @@ function openPicker(side) {
 function filterPicker(query) {
   const q = normalize(query.trim());
   cpList.querySelectorAll("button").forEach((b) => {
-    const ch = CHARACTERS[+b.dataset.i];
+    const ch = ROSTER[+b.dataset.i];
     b.parentElement.hidden = q !== "" && !normalize(ch.name).includes(q);
   });
 }
@@ -534,13 +696,14 @@ function rollMatchup() {
   let r, c;
   if (unplayedOnly) {
     const played = currentBoard.results;
-    const remaining = TOTAL_MATCHUPS - Object.keys(played).length;
+    // count within the active roster only; hidden namespaced results don't count
+    const remaining = TOTAL - boardStats(currentBoard).played;
     if (remaining <= 0) {
-      alert("All 5,776 matchups have been played. Incredible!");
+      alert(`All ${TOTAL.toLocaleString()} matchups have been played. Incredible!`);
       return;
     }
     // rejection sampling is fast until the board is nearly complete
-    if (remaining > TOTAL_MATCHUPS / 200) {
+    if (remaining > TOTAL / 200) {
       do {
         r = Math.floor(Math.random() * N);
         c = Math.floor(Math.random() * N);

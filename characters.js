@@ -1,10 +1,13 @@
-// Super Smash Bros. Ultimate roster — Miis removed, echo fighters merged
-// into their base character. 76 characters -> 76 x 76 = 5776 matchups.
+// Super Smash Bros. Ultimate roster in official order.
+// Echo fighters ride along on their base character and are combined by
+// default; a board's roster config can separate any pair individually and
+// can add the three Mii Fighters. Default roster: 76 characters -> 5,776
+// matchups, matching the classic physical board.
 const CHARACTERS = [
   { slug: "mario", name: "Mario" },
   { slug: "donkey_kong", name: "Donkey Kong" },
   { slug: "link", name: "Link" },
-  { slug: "samus", name: "Samus / Dark Samus" },
+  { slug: "samus", name: "Samus", echo: { slug: "dark_samus", name: "Dark Samus" } },
   { slug: "yoshi", name: "Yoshi" },
   { slug: "kirby", name: "Kirby" },
   { slug: "fox", name: "Fox" },
@@ -13,7 +16,7 @@ const CHARACTERS = [
   { slug: "ness", name: "Ness" },
   { slug: "captain_falcon", name: "Captain Falcon" },
   { slug: "jigglypuff", name: "Jigglypuff" },
-  { slug: "peach", name: "Peach / Daisy" },
+  { slug: "peach", name: "Peach", echo: { slug: "daisy", name: "Daisy" } },
   { slug: "bowser", name: "Bowser" },
   { slug: "ice_climbers", name: "Ice Climbers" },
   { slug: "sheik", name: "Sheik" },
@@ -21,14 +24,14 @@ const CHARACTERS = [
   { slug: "dr_mario", name: "Dr. Mario" },
   { slug: "pichu", name: "Pichu" },
   { slug: "falco", name: "Falco" },
-  { slug: "marth", name: "Marth / Lucina" },
+  { slug: "marth", name: "Marth", echo: { slug: "lucina", name: "Lucina" } },
   { slug: "young_link", name: "Young Link" },
   { slug: "ganondorf", name: "Ganondorf" },
   { slug: "mewtwo", name: "Mewtwo" },
-  { slug: "roy", name: "Roy / Chrom" },
+  { slug: "roy", name: "Roy", echo: { slug: "chrom", name: "Chrom" } },
   { slug: "mr_game_and_watch", name: "Mr. Game & Watch" },
   { slug: "meta_knight", name: "Meta Knight" },
-  { slug: "pit", name: "Pit / Dark Pit" },
+  { slug: "pit", name: "Pit", echo: { slug: "dark_pit", name: "Dark Pit" } },
   { slug: "zero_suit_samus", name: "Zero Suit Samus" },
   { slug: "wario", name: "Wario" },
   { slug: "snake", name: "Snake" },
@@ -55,13 +58,13 @@ const CHARACTERS = [
   { slug: "shulk", name: "Shulk" },
   { slug: "bowser_jr", name: "Bowser Jr." },
   { slug: "duck_hunt", name: "Duck Hunt" },
-  { slug: "ryu", name: "Ryu / Ken" },
+  { slug: "ryu", name: "Ryu", echo: { slug: "ken", name: "Ken" } },
   { slug: "cloud", name: "Cloud" },
   { slug: "corrin", name: "Corrin" },
   { slug: "bayonetta", name: "Bayonetta" },
   { slug: "inkling", name: "Inkling" },
   { slug: "ridley", name: "Ridley" },
-  { slug: "simon", name: "Simon / Richter" },
+  { slug: "simon", name: "Simon", echo: { slug: "richter", name: "Richter" } },
   { slug: "king_k_rool", name: "King K. Rool" },
   { slug: "isabelle", name: "Isabelle" },
   { slug: "incineroar", name: "Incineroar" },
@@ -79,5 +82,46 @@ const CHARACTERS = [
   { slug: "sora", name: "Sora" },
 ];
 
-const N = CHARACTERS.length; // 76
-const TOTAL_MATCHUPS = N * N; // 5776
+const ECHO_PAIRS = CHARACTERS.filter((ch) => ch.echo);
+
+// Miis slot in after Greninja (official numbering 49-51).
+const MII_FIGHTERS = [
+  { slug: "mii_brawler", name: "Mii Brawler" },
+  { slug: "mii_swordfighter", name: "Mii Swordfighter" },
+  { slug: "mii_gunner", name: "Mii Gunner" },
+];
+const MII_AFTER = "greninja";
+
+const combinedSlug = (ch) => `${ch.slug}+${ch.echo.slug}`;
+
+const DEFAULT_ROSTER_CONFIG = { separated: [], miis: false };
+
+// Build the playable roster for a board config. Result keys use each
+// entry's slug, so combined results ("marth+lucina|fox") and individual
+// results ("marth|fox", "lucina|fox") live in separate namespaces and both
+// survive toggling back and forth.
+function buildRoster(config) {
+  const cfg = config || DEFAULT_ROSTER_CONFIG;
+  const sep = new Set(cfg.separated || []);
+  const roster = [];
+  for (const ch of CHARACTERS) {
+    if (ch.echo && !sep.has(ch.slug)) {
+      roster.push({
+        slug: combinedSlug(ch),
+        name: `${ch.name} / ${ch.echo.name}`,
+        icon: ch.slug,
+      });
+    } else {
+      roster.push({ slug: ch.slug, name: ch.name, icon: ch.slug });
+      if (ch.echo) {
+        roster.push({ slug: ch.echo.slug, name: ch.echo.name, icon: ch.echo.slug });
+      }
+    }
+    if (ch.slug === MII_AFTER && cfg.miis) {
+      for (const m of MII_FIGHTERS) {
+        roster.push({ slug: m.slug, name: m.name, icon: m.slug });
+      }
+    }
+  }
+  return roster;
+}

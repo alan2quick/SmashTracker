@@ -18,7 +18,7 @@
   <main id="home-view" class="view">
     <header class="home-header">
       <h1>Smash Matchup Tracker</h1>
-      <p class="subtitle">76 fighters &middot; 5,776 matchups per board</p>
+      <p class="subtitle">Every fighter &middot; every matchup &middot; 5,776 and up</p>
     </header>
     <ul id="board-list" class="board-list"></ul>
     <div class="home-actions">
@@ -120,11 +120,40 @@
         </label>
         <input type="color" id="bf-p2-color" value="#ef4444" aria-label="Player 2 color">
       </div>
+      <details id="bf-advanced" class="advanced">
+        <summary>Advanced roster options</summary>
+        <label class="adv-toggle">
+          <input type="checkbox" id="bf-miis"> Include Mii Fighters (adds 3 fighters)
+        </label>
+        <div id="bf-pairs"></div>
+        <p class="adv-note">Combined and individual echo results are stored
+        separately &mdash; toggling back restores what you played before, but new
+        matchups added by a change start unplayed.</p>
+      </details>
       <div class="modal-actions">
         <button type="submit" class="btn btn-primary" id="bf-save">Create</button>
         <button type="button" class="btn btn-ghost" id="bf-cancel">Cancel</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- ============ Echo combine warning ============ -->
+  <dialog id="echo-warning" class="modal">
+    <h2>Combine echo fighters?</h2>
+    <p class="ew-text">You have individual results for: <b id="ew-pairs"></b>.</p>
+    <p class="ew-text">Those games don't count toward the combined fighter.
+    <b>Merge</b> assigns a combined win only where one player won every
+    individual game of that matchup (1&ndash;0, 2&ndash;0&hellip;); cells already played
+    as the combined fighter are kept as-is. <b>Leave blank</b> keeps combined
+    cells unplayed. Individual results stay saved either way, and come back
+    if you separate the pair again.</p>
+    <div class="modal-actions">
+      <button id="ew-merge" class="btn btn-primary">Merge results</button>
+    </div>
+    <div class="modal-actions secondary">
+      <button id="ew-blank" class="btn btn-ghost">Leave blank</button>
+      <button id="ew-cancel" class="btn btn-ghost">Cancel</button>
+    </div>
   </dialog>
 
   <script src="characters.js"></script>

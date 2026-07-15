@@ -1,6 +1,8 @@
-const CACHE = "smashtracker-v1";
+const CACHE = "smashtracker-v2";
 
 const SLUGS = [
+  "daisy","lucina","chrom","dark_samus","dark_pit","ken","richter",
+  "mii_brawler","mii_swordfighter","mii_gunner",
   "mario","donkey_kong","link","samus","yoshi","kirby","fox","pikachu","luigi","ness",
   "captain_falcon","jigglypuff","peach","bowser","ice_climbers","sheik","zelda","dr_mario",
   "pichu","falco","marth","young_link","ganondorf","mewtwo","roy","mr_game_and_watch",
