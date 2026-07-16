@@ -454,16 +454,20 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinchStart = null;
 }
-viewport.addEventListener("pointerup", (e) => {
-  endPointer(e);
-  if (moved < 8 && pointers.size === 0) {
-    const cell = document.elementFromPoint(e.clientX, e.clientY);
-    if (cell && cell.classList.contains("cell")) {
-      openMatchup(+cell.dataset.r, +cell.dataset.c, false);
-    }
+viewport.addEventListener("pointerup", endPointer);
+viewport.addEventListener("pointercancel", endPointer);
+
+// Open on the tap's own click event (not pointerup): the browser fires the
+// synthesized click AFTER pointerup, and if the dialog is already open by
+// then, that ghost click would land on whatever modal button is under the
+// finger and instantly trigger it.
+viewport.addEventListener("click", (e) => {
+  if (moved >= 8) return;
+  const cell = document.elementFromPoint(e.clientX, e.clientY);
+  if (cell && cell.classList.contains("cell")) {
+    openMatchup(+cell.dataset.r, +cell.dataset.c, false);
   }
 });
-viewport.addEventListener("pointercancel", endPointer);
 
 $("zoom-in-btn").addEventListener("click", () =>
   zoomAt(viewport.clientWidth / 2, viewport.clientHeight / 2, 1.4));
@@ -585,8 +589,25 @@ function openMatchup(r, c, fromRandom) {
 
   highlightCell(r, c);
   if (fromRandom) centerOnCell(r, c);
-  if (!modal.open) modal.showModal();
+  if (!modal.open) {
+    modal.showModal();
+    modalOpenedAt = Date.now();
+  }
 }
+
+// Swallow clicks that arrive just after the dialog opened — a fast double-tap
+// on the grid would otherwise hit a button before the user can even see it.
+let modalOpenedAt = 0;
+modal.addEventListener(
+  "click",
+  (e) => {
+    if (Date.now() - modalOpenedAt < 300) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  },
+  true
+);
 
 function setResult(winner) {
   const { r, c } = currentMU;
