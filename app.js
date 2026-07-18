@@ -16,18 +16,25 @@ function loadDB() {
 
 // Boards created before roster options existed store combined-echo results
 // under the base slug ("marth|fox"); move them to the combined namespace
-// ("marth+lucina|fox") and attach the default roster config.
+// ("marth+lucina|fox") and attach the default roster config. Results saved
+// as plain winner numbers become { w, t } objects; t is the epoch ms the
+// matchup was first played, 0 when unknown (played before order tracking).
 function migrateBoard(board) {
-  if (board.roster) return;
-  board.roster = { separated: [], miis: false };
-  const map = {};
-  for (const ch of ECHO_PAIRS) map[ch.slug] = combinedSlug(ch);
-  const migrated = {};
-  for (const k in board.results) {
-    const [r, c] = k.split("|");
-    migrated[(map[r] || r) + "|" + (map[c] || c)] = board.results[k];
+  if (!board.roster) {
+    board.roster = { separated: [], miis: false };
+    const map = {};
+    for (const ch of ECHO_PAIRS) map[ch.slug] = combinedSlug(ch);
+    const migrated = {};
+    for (const k in board.results) {
+      const [r, c] = k.split("|");
+      migrated[(map[r] || r) + "|" + (map[c] || c)] = board.results[k];
+    }
+    board.results = migrated;
   }
-  board.results = migrated;
+  for (const k in board.results) {
+    const v = board.results[k];
+    if (typeof v === "number") board.results[k] = { w: v, t: 0 };
+  }
 }
 
 function saveDB() {
@@ -64,8 +71,9 @@ function boardStats(board) {
   for (const a of roster) {
     for (const b of roster) {
       const v = board.results[a.slug + "|" + b.slug];
-      if (v === 1) p1++;
-      else if (v === 2) p2++;
+      if (!v) continue;
+      if (v.w === 1) p1++;
+      else if (v.w === 2) p2++;
     }
   }
   return { p1, p2, played: p1 + p2, total: roster.length * roster.length };
@@ -191,18 +199,21 @@ function mergeEchoResults(board, pairs, newConfig) {
       for (const [A, B] of [[combined, opp.slug], [opp.slug, combined]]) {
         const target = A + "|" + B;
         if (res[target]) continue;
-        let w1 = 0, w2 = 0;
+        let w1 = 0, w2 = 0, maxT = 0;
         for (const a of reps(A)) {
           for (const b of reps(B)) {
             const k = a + "|" + b;
             if (k === target) continue;
             const v = res[k];
-            if (v === 1) w1++;
-            else if (v === 2) w2++;
+            if (!v) continue;
+            if (v.w === 1) w1++;
+            else if (v.w === 2) w2++;
+            if (v.t > maxT) maxT = v.t;
           }
         }
-        if (w1 > 0 && w2 === 0) res[target] = 1;
-        else if (w2 > 0 && w1 === 0) res[target] = 2;
+        // merged results inherit the latest contributing game's play time
+        if (w1 > 0 && w2 === 0) res[target] = { w: 1, t: maxT };
+        else if (w2 > 0 && w1 === 0) res[target] = { w: 2, t: maxT };
       }
     }
   }
@@ -359,7 +370,8 @@ function headerIcon(i) {
 }
 
 function paintCell(r, c) {
-  const w = currentBoard.results[muKey(r, c)];
+  const v = currentBoard.results[muKey(r, c)];
+  const w = v && v.w;
   const el = cellEls[r][c];
   el.classList.toggle("w1", w === 1);
   el.classList.toggle("w2", w === 2);
@@ -539,7 +551,7 @@ function charRecord(side, i) {
   for (let j = 0; j < N; j++) {
     const v = side === "p1" ? res[muKey(i, j)] : res[muKey(j, i)];
     if (!v) continue;
-    const won = side === "p1" ? v === 1 : v === 2;
+    const won = side === "p1" ? v.w === 1 : v.w === 2;
     if (won) w++; else l++;
   }
   return { w, l };
@@ -576,7 +588,8 @@ function openMatchup(r, c, fromRandom) {
   $("mu-p2-record").textContent = fmtRecord(charRecord("p2", c));
   $("mu-reroll").hidden = !fromRandom;
 
-  const w = b.results[muKey(r, c)];
+  const v = b.results[muKey(r, c)];
+  const w = v && v.w;
   const status = $("mu-status");
   if (w === 1) status.innerHTML = `Played &mdash; <b class="p1"></b> won`;
   else if (w === 2) status.innerHTML = `Played &mdash; <b class="p2"></b> won`;
@@ -611,8 +624,14 @@ modal.addEventListener(
 
 function setResult(winner) {
   const { r, c } = currentMU;
-  if (winner) currentBoard.results[muKey(r, c)] = winner;
-  else delete currentBoard.results[muKey(r, c)];
+  const key = muKey(r, c);
+  if (winner) {
+    // keep the original play time when only the winner is being corrected
+    const prev = currentBoard.results[key];
+    currentBoard.results[key] = { w: winner, t: prev ? prev.t : Date.now() };
+  } else {
+    delete currentBoard.results[key];
+  }
   saveDB();
   paintCell(r, c);
   updateScore();
