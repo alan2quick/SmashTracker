@@ -521,6 +521,16 @@ function openBoard(board) {
   fitBoard(false);
 }
 
+// Tapping the header hides/shows the running record; the played counter
+// stays either way.
+$("board-header").addEventListener("click", (e) => {
+  if (e.target.closest("#back-btn")) return;
+  const showing = currentBoard.showRecord !== false;
+  currentBoard.showRecord = !showing;
+  saveDB();
+  updateScore();
+});
+
 $("back-btn").addEventListener("click", () => {
   clearHighlight();
   $("board-view").hidden = true;
@@ -532,6 +542,7 @@ function updateScore() {
   const s = boardStats(currentBoard);
   $("score-p1").textContent = s.p1;
   $("score-p2").textContent = s.p2;
+  $("score-display").hidden = currentBoard.showRecord === false;
   $("board-progress").textContent =
     `${s.played.toLocaleString()} / ${TOTAL.toLocaleString()} played`;
 }
