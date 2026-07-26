@@ -1,4 +1,4 @@
-const CACHE = "smashtracker-v2";
+const CACHE = "smashtracker-v3";
 
 const SLUGS = [
   "daisy","lucina","chrom","dark_samus","dark_pit","ken","richter",
@@ -20,6 +20,11 @@ const ASSETS = [
   "./styles.css",
   "./app.js",
   "./characters.js",
+  "./sync.js",
+  "./firebase-config.js",
+  "./vendor/firebase-app-compat.js",
+  "./vendor/firebase-auth-compat.js",
+  "./vendor/firebase-database-compat.js",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",

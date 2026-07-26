@@ -43,6 +43,7 @@ function saveDB() {
 
 let db = loadDB();
 let currentBoard = null;
+let readOnly = false; // true when watching a published board via a share link
 
 const $ = (id) => document.getElementById(id);
 
@@ -55,10 +56,14 @@ let ROSTER = [];
 let N = 0;
 let TOTAL = 0;
 
+let ROSTER_INDEX = {}; // slug -> row/column index
+
 function setActiveRoster(board) {
   ROSTER = buildRoster(board.roster);
   N = ROSTER.length;
   TOTAL = N * N;
+  ROSTER_INDEX = {};
+  ROSTER.forEach((entry, i) => (ROSTER_INDEX[entry.slug] = i));
 }
 
 const muKey = (r, c) => ROSTER[r].slug + "|" + ROSTER[c].slug;
@@ -107,6 +112,7 @@ function renderHome() {
         </div>
       </div>
       <div class="board-card-actions">
+        <button class="icon-btn share-btn" aria-label="Share board">&#128279;</button>
         <button class="icon-btn edit-btn" aria-label="Edit board">&#9998;</button>
         <button class="icon-btn delete-btn" aria-label="Delete board">&#128465;</button>
       </div>`;
@@ -117,9 +123,11 @@ function renderHome() {
       if (e.target.closest(".board-card-actions")) return;
       openBoard(board);
     });
+    li.querySelector(".share-btn").addEventListener("click", () => openShare(board));
     li.querySelector(".edit-btn").addEventListener("click", () => openBoardForm(board));
     li.querySelector(".delete-btn").addEventListener("click", () => {
       if (confirm(`Delete board "${board.name}"? This can't be undone.`)) {
+        if (Sync.isPublished(board)) Sync.unpublish(board).catch(() => {});
         db.boards = db.boards.filter((b) => b.id !== board.id);
         saveDB();
         renderHome();
@@ -225,6 +233,7 @@ function applyBoardSave(data, newConfig) {
   if (editingBoard) {
     Object.assign(editingBoard, data);
     editingBoard.roster = newConfig;
+    Sync.pushMeta(editingBoard);
   } else {
     db.boards.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -281,11 +290,83 @@ $("ew-merge").addEventListener("click", () => {
   pendingSave = null;
   $("echo-warning").close();
   mergeEchoResults(editingBoard, affected, newConfig);
+  Sync.pushResults(editingBoard);
   applyBoardSave(data, newConfig);
 });
 
 $("bf-cancel").addEventListener("click", () => $("board-modal").close());
 $("new-board-btn").addEventListener("click", () => openBoardForm(null));
+
+/* ================= Publish / share ================= */
+
+let sharingBoard = null;
+
+const shareUrlFor = (id) =>
+  location.origin + location.pathname.replace(/index\.html$/, "") + "?b=" + id;
+
+function openShare(board) {
+  sharingBoard = board;
+  const configured = Sync.configured();
+  const live = Sync.isPublished(board);
+  $("share-unconfigured").hidden = configured;
+  $("share-offer").hidden = !configured || live;
+  $("share-live").hidden = !live;
+  $("share-publish").hidden = !configured || live;
+  $("share-copy").hidden = !live;
+  $("share-unpublish").hidden = !live;
+  if (live) {
+    $("share-url").value = shareUrlFor(board.published.id);
+    $("share-note").textContent =
+      "Results you record are pushed here automatically. Unpublishing takes it offline immediately.";
+  }
+  $("share-modal").showModal();
+}
+
+$("share-publish").addEventListener("click", async () => {
+  const board = sharingBoard;
+  const btn = $("share-publish");
+  btn.disabled = true;
+  btn.textContent = "Publishing…";
+  try {
+    const id = await Sync.publish(board);
+    board.published = { id };
+    saveDB();
+    renderHome();
+    openShare(board);
+  } catch (err) {
+    alert("Couldn't publish: " + (err && err.message ? err.message : err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Publish board";
+  }
+});
+
+$("share-copy").addEventListener("click", async () => {
+  const url = $("share-url").value;
+  try {
+    await navigator.clipboard.writeText(url);
+    $("share-copy").textContent = "Copied!";
+    setTimeout(() => ($("share-copy").textContent = "Copy link"), 1500);
+  } catch {
+    $("share-url").select();
+  }
+});
+
+$("share-unpublish").addEventListener("click", async () => {
+  const board = sharingBoard;
+  if (!confirm("Take this board offline? The public link will stop working.")) return;
+  try {
+    await Sync.unpublish(board);
+    delete board.published;
+    saveDB();
+    renderHome();
+    $("share-modal").close();
+  } catch (err) {
+    alert("Couldn't unpublish: " + (err && err.message ? err.message : err));
+  }
+});
+
+$("share-close").addEventListener("click", () => $("share-modal").close());
 
 /* ================= Export / import ================= */
 
@@ -597,7 +678,7 @@ function openMatchup(r, c, fromRandom) {
   $("mu-win-p2").textContent = `${b.p2.name} won`;
   $("mu-p1-record").textContent = fmtRecord(charRecord("p1", r));
   $("mu-p2-record").textContent = fmtRecord(charRecord("p2", c));
-  $("mu-reroll").hidden = !fromRandom;
+  $("mu-reroll").hidden = !fromRandom || readOnly;
 
   const v = b.results[muKey(r, c)];
   const w = v && v.w;
@@ -607,7 +688,9 @@ function openMatchup(r, c, fromRandom) {
   else status.textContent = "Not played yet";
   const bEl = status.querySelector("b");
   if (bEl) bEl.textContent = w === 1 ? b.p1.name : b.p2.name;
-  $("mu-clear").hidden = !w;
+  $("mu-clear").hidden = !w || readOnly;
+  $("mu-win-p1").hidden = readOnly;
+  $("mu-win-p2").hidden = readOnly;
   $("mu-win-p1").classList.toggle("held", w === 1);
   $("mu-win-p2").classList.toggle("held", w === 2);
 
@@ -644,6 +727,7 @@ function setResult(winner) {
     delete currentBoard.results[key];
   }
   saveDB();
+  Sync.pushResult(currentBoard, key, currentBoard.results[key] || null);
   paintCell(r, c);
   updateScore();
   modal.close();
@@ -773,9 +857,78 @@ function rollMatchup() {
   openMatchup(r, c, true);
 }
 
+/* ================= Viewer (public read-only link) ================= */
+
+function startViewer(id) {
+  readOnly = true;
+  $("home-view").hidden = true;
+  $("board-view").hidden = false;
+  document.querySelector(".board-footer").hidden = true;
+  $("back-btn").hidden = true;
+  $("board-name").textContent = "Loading board…";
+  $("board-progress").textContent = "";
+
+  const remote = {
+    name: "",
+    p1: { name: "", color: "#3b82f6" },
+    p2: { name: "", color: "#ef4444" },
+    roster: { separated: [], miis: false },
+    results: {},
+    unplayedOnly: false,
+  };
+  let rendered = false;
+  let rosterSig = null;
+
+  const fail = (msg) => {
+    $("live-badge").hidden = true;
+    $("board-name").textContent = msg;
+    $("board-progress").textContent = "";
+  };
+
+  Sync.subscribe(id, {
+    onMeta(meta) {
+      Object.assign(remote, {
+        name: meta.name || "Shared board",
+        p1: meta.p1 || remote.p1,
+        p2: meta.p2 || remote.p2,
+        roster: meta.roster || { separated: [], miis: false },
+      });
+      const sig = JSON.stringify(remote.roster);
+      if (!rendered || sig !== rosterSig) {
+        rosterSig = sig;
+        rendered = true;
+        $("live-badge").hidden = false;
+        openBoard(remote); // builds the grid, paints, fits to screen
+      } else {
+        // name or colours only — don't rebuild, it would reset the zoom
+        document.documentElement.style.setProperty("--p1-color", remote.p1.color);
+        document.documentElement.style.setProperty("--p2-color", remote.p2.color);
+        $("board-name").textContent = remote.name;
+        $("score-p1-name").textContent = remote.p1.name;
+        $("score-p2-name").textContent = remote.p2.name;
+        updateScore();
+      }
+    },
+    onResult(key, value) {
+      if (value) remote.results[key] = value;
+      else delete remote.results[key];
+      if (!rendered) return; // painted in full once meta arrives
+      const [a, b] = key.split("|");
+      const r = ROSTER_INDEX[a], c = ROSTER_INDEX[b];
+      if (r === undefined || c === undefined) return; // not on the active roster
+      paintCell(r, c);
+      updateScore();
+    },
+    onMissing: () => fail("This board isn't published any more."),
+    onUnavailable: () => fail("Sharing isn't configured for this app."),
+  });
+}
+
 /* ================= Init ================= */
 
-renderHome();
+const viewerId = new URLSearchParams(location.search).get("b");
+if (viewerId) startViewer(viewerId);
+else renderHome();
 
 window.addEventListener("resize", () => {
   if (!$("board-view").hidden) fitBoard(false);

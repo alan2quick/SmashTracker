@@ -37,6 +37,7 @@
         <span id="board-name"></span>
         <span id="board-progress" class="progress-text"></span>
       </div>
+      <span id="live-badge" class="live-badge" hidden>LIVE</span>
       <div id="score-display" class="score-display">
         <span class="score p1"><b id="score-p1-name"></b> <span id="score-p1"></span></span>
         <span class="score-sep">&ndash;</span>
@@ -137,6 +138,35 @@
     </form>
   </dialog>
 
+  <!-- ============ Publish / share ============ -->
+  <dialog id="share-modal" class="modal">
+    <h2>Share board</h2>
+    <div id="share-unconfigured" hidden>
+      <p class="ew-text">Publishing needs a free Firebase project. Add its
+      config to <b>firebase-config.js</b> &mdash; the README has the
+      five-minute walkthrough.</p>
+    </div>
+    <div id="share-offer" hidden>
+      <p class="ew-text">Publishing puts a <b>read-only</b> copy of this board
+      online at a private-looking link. Anyone with the link can watch it fill
+      in live &mdash; results appear as soon as you record them. They can't
+      change anything. Player names are part of what gets published.</p>
+    </div>
+    <div id="share-live" hidden>
+      <p class="ew-text">This board is live. Anyone with the link can watch:</p>
+      <input type="text" id="share-url" readonly>
+      <p class="ew-text" id="share-note"></p>
+    </div>
+    <div class="modal-actions">
+      <button id="share-publish" class="btn btn-primary" hidden>Publish board</button>
+      <button id="share-copy" class="btn btn-primary" hidden>Copy link</button>
+    </div>
+    <div class="modal-actions secondary">
+      <button id="share-unpublish" class="btn btn-ghost danger" hidden>Unpublish</button>
+      <button id="share-close" class="btn btn-ghost">Close</button>
+    </div>
+  </dialog>
+
   <!-- ============ Echo combine warning ============ -->
   <dialog id="echo-warning" class="modal">
     <h2>Combine echo fighters?</h2>
@@ -156,6 +186,11 @@
     </div>
   </dialog>
 
+  <script src="vendor/firebase-app-compat.js"></script>
+  <script src="vendor/firebase-auth-compat.js"></script>
+  <script src="vendor/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="sync.js"></script>
   <script src="characters.js"></script>
   <script src="app.js"></script>
 </body>
