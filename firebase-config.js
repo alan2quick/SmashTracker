@@ -1,23 +1,15 @@
-// Paste your own Firebase web config here to enable publishing.
-// Leave it as null and the app works exactly as before, just local-only.
+// Firebase project used for publishing boards to public read-only links.
+// Set this to null to turn publishing off and keep the app entirely local.
+// Setup walkthrough and the matching database rules: see README.
 //
-// Setup (about five minutes, see README for the full walkthrough):
-//   1. console.firebase.google.com -> create a project
-//   2. Build > Realtime Database -> create (any region)
-//   3. Rules tab -> paste the rules from README, publish
-//   4. Build > Authentication -> Sign-in method -> enable Anonymous
-//   5. Project settings > General -> add a Web app -> copy the config below
-//
-// These values are not secrets; they identify your project and are meant to
-// ship in client code. Your data is protected by the database rules.
-const FIREBASE_CONFIG = null;
-
-/* Example:
+// These values are not secrets; they identify the project and are meant to
+// ship in client code. The data is protected by the database rules.
 const FIREBASE_CONFIG = {
-  apiKey: "AIza...",
-  authDomain: "your-project.firebaseapp.com",
-  databaseURL: "https://your-project-default-rtdb.firebaseio.com",
-  projectId: "your-project",
-  appId: "1:123...:web:abc...",
+  apiKey: "AIzaSyBznsomiq1Vk_My3noMl70dr1UUoovhL64",
+  authDomain: "smashtracker-bc1e0.firebaseapp.com",
+  databaseURL: "https://smashtracker-bc1e0-default-rtdb.firebaseio.com",
+  projectId: "smashtracker-bc1e0",
+  storageBucket: "smashtracker-bc1e0.firebasestorage.app",
+  messagingSenderId: "48463648795",
+  appId: "1:48463648795:web:a89655fb4f769aa4d900be",
 };
-*/
