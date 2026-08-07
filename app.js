@@ -624,8 +624,9 @@ function updateScore() {
   $("score-p1").textContent = s.p1;
   $("score-p2").textContent = s.p2;
   $("score-display").hidden = currentBoard.showRecord === false;
+  const pct = ((s.played / TOTAL) * 100).toFixed(2);
   $("board-progress").textContent =
-    `${s.played.toLocaleString()} / ${TOTAL.toLocaleString()} played`;
+    `${s.played.toLocaleString()} / ${TOTAL.toLocaleString()} played (${pct}%)`;
 }
 
 $("unplayed-only").addEventListener("change", (e) => {
