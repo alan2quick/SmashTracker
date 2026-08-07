@@ -338,6 +338,8 @@ button { font: inherit; cursor: pointer; }
   border-radius: 999px;
   padding: 3px 8px;
 }
+.sync-ok { color: #4ade80; }
+.sync-bad { color: #fbbf24; }
 #share-url {
   width: 100%;
   background: var(--surface-2);

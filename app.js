@@ -300,6 +300,7 @@ $("new-board-btn").addEventListener("click", () => openBoardForm(null));
 /* ================= Publish / share ================= */
 
 let sharingBoard = null;
+let needsNewLink = false; // set when the old link can no longer be updated
 
 const shareUrlFor = (id) =>
   location.origin + location.pathname.replace(/index\.html$/, "") + "?b=" + id;
@@ -314,12 +315,49 @@ function openShare(board) {
   $("share-publish").hidden = !configured || live;
   $("share-copy").hidden = !live;
   $("share-unpublish").hidden = !live;
+  $("share-publish").textContent = "Publish board";
+  needsNewLink = false;
   if (live) {
     $("share-url").value = shareUrlFor(board.published.id);
     $("share-note").textContent =
       "Results you record are pushed here automatically. Unpublishing takes it offline immediately.";
+    showSyncStatus(board);
   }
   $("share-modal").showModal();
+}
+
+// Writes are rejected silently by the rules when this device is no longer the
+// board's owner, so say so plainly instead of looking healthy.
+function showSyncStatus(board) {
+  const el = $("share-status");
+  el.className = "ew-text";
+  el.textContent = "Checking sync…";
+  Sync.status(board).then((s) => {
+    if (sharingBoard !== board) return;
+    const offerRepublish = (msg) => {
+      el.textContent = msg;
+      el.className = "ew-text sync-bad";
+      needsNewLink = true;
+      $("share-publish").hidden = false;
+      $("share-publish").textContent = "Publish again (new link)";
+    };
+    if (s.state === "ok" && !s.lastError) {
+      el.textContent = "✓ This device is syncing to the link.";
+      el.className = "ew-text sync-ok";
+    } else if (s.state === "ok") {
+      el.textContent = "⚠ The last update didn't reach the server: " + s.lastError;
+      el.className = "ew-text sync-bad";
+    } else if (s.state === "not-owner") {
+      offerRepublish(
+        "⚠ This device can no longer update this board. The anonymous session that published it is gone — usually cleared site data, or the browser evicting storage. Games you record are not reaching the link."
+      );
+    } else if (s.state === "missing") {
+      offerRepublish("⚠ The published copy is no longer in the database.");
+    } else {
+      el.textContent = "⚠ Couldn't check sync" + (s.message ? ": " + s.message : ".");
+      el.className = "ew-text sync-bad";
+    }
+  });
 }
 
 $("share-publish").addEventListener("click", async () => {
@@ -328,6 +366,7 @@ $("share-publish").addEventListener("click", async () => {
   btn.disabled = true;
   btn.textContent = "Publishing…";
   try {
+    if (needsNewLink) delete board.published; // stale link -> mint a fresh one
     const id = await Sync.publish(board);
     board.published = { id };
     saveDB();
@@ -928,8 +967,16 @@ function startViewer(id) {
 /* ================= Init ================= */
 
 const viewerId = new URLSearchParams(location.search).get("b");
-if (viewerId) startViewer(viewerId);
-else renderHome();
+if (viewerId) {
+  startViewer(viewerId);
+} else {
+  renderHome();
+  // Restore the owner session early so the first result of a session isn't
+  // waiting on sign-in, and so a lost session shows up before it matters.
+  if (Sync.configured() && db.boards.some((b) => Sync.isPublished(b))) {
+    Sync.signIn().catch(() => {});
+  }
+}
 
 window.addEventListener("resize", () => {
   if (!$("board-view").hidden) fitBoard(false);

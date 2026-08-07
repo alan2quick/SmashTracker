@@ -103,8 +103,29 @@ const Sync = (() => {
     boardRef(board.published.id).child("results").set(board.results).catch(reportError);
   }
 
+  let lastError = null;
+
   function reportError(err) {
-    console.warn("[sync] write failed:", err && err.message);
+    lastError = (err && err.message) || String(err);
+    console.warn("[sync] write failed:", lastError);
+  }
+
+  // Can this device still update the published copy? Writes are rejected
+  // silently by the rules if the anonymous session that created the board
+  // is gone (cleared site data, or storage evicted by the browser), so the
+  // share dialog checks this rather than pretending everything is fine.
+  async function status(board) {
+    if (!configured()) return { state: "unconfigured" };
+    if (!isPublished(board)) return { state: "unpublished" };
+    try {
+      const me = await signIn();
+      const snap = await boardRef(board.published.id).child("owner").once("value");
+      if (!snap.exists()) return { state: "missing" };
+      if (snap.val() !== me) return { state: "not-owner" };
+      return { state: "ok", lastError };
+    } catch (err) {
+      return { state: "error", message: err && err.message };
+    }
   }
 
   // Read-only live subscription used by the viewer. No sign-in needed: the
@@ -136,5 +157,5 @@ const Sync = (() => {
     };
   }
 
-  return { configured, publish, unpublish, pushResult, pushMeta, pushResults, subscribe, isPublished };
+  return { configured, signIn, status, publish, unpublish, pushResult, pushMeta, pushResults, subscribe, isPublished };
 })();
